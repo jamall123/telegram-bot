@@ -6,8 +6,8 @@ import json
 # 🔑 جلب المفاتيح من Environment Variables
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-OWNER_ID = int(os.getenv('OWNER_ID', 0))  # ضع هنا ID تلغرام الخاص بك
-CHANNEL_ID = (os.getenv('CHANNEL_ID', 0))  # ضع هنا ID القناة
+OWNER_ID = int(os.getenv('OWNER_ID', 0))  # رقم Telegram الخاص بك
+CHANNEL_ID = os.getenv('CHANNEL_ID')      # @اسم_القناة أو رقم القناة الخاص -1001234567890
 
 # التأكد من وجود المفاتيح
 if not GROQ_API_KEY or not TELEGRAM_BOT_TOKEN or not OWNER_ID or not CHANNEL_ID:
@@ -34,11 +34,11 @@ def get_groq_response(messages):
     }
     
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, timeout=10)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
-    except Exce    raise ConnectionError(err, request=requesption as e:
-        print(f"Groq API Error: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Groq API Connection Error: {e}")
         return "❌ حدث خطأ في الاتصال بالذكاء الاصطناعي"
 
 # رسالة الترحيب
