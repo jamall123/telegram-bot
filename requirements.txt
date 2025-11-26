@@ -1,2 +1,2 @@
-python-telegram-bot==20.3
-requests
+pytelegrambotapi==4.14.0
+groq==0.10.0
