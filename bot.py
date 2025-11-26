@@ -3,75 +3,23 @@ import telebot
 import requests
 import json
 
-# 🔑 المفاتيح
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+# 🔑 جلب المفاتيح من Environment Variables
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+OWNER_ID = int(os.getenv('OWNER_ID', 0))  # ضع هنا ID تلغرام الخاص بك
+CHANNEL_ID = (os.getenv('CHANNEL_ID', 0))  # ضع هنا ID القناة
+
+# التأكد من وجود المفاتيح
+if not GROQ_API_KEY or not TELEGRAM_BOT_TOKEN or not OWNER_ID or not CHANNEL_ID:
+    print("❌ تأكد من تعيين جميع المتغيرات: GROQ_API_KEY, TELEGRAM_BOT_TOKEN, OWNER_ID, CHANNEL_ID")
+    exit(1)
+else:
+    print("✅ تم تحميل المفاتيح بنجاح!")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-chat_histories = {}  # تخزين تاريخ المحادثة لكل دردشة
-
-def get_chat_history(chat_id):
-    if chat_id not in chat_histories:
-        chat_histories[chat_id] = [
-            {
-                "role": "system",
-                "content": (
-                    "You are Jamal's personal assistant. "
-                    "Your job is to help Jamal in everything he needs. "
-                    "You never share personal information. "
-                    "You help with studying, programming, and daily questions. "
-                    "You are friendly, supportive, and encouraging. "
-                    "You always try to make people happy and motivated."
-                )
-            }
-        ]
-    return chat_histories[chat_id]
-
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    welcome_text = "🤖 أهلاً! أنا مساعد جمال. كيف يمكنني مساعدتك؟"
-    bot.reply_to(message, welcome_text)
-
-@bot.message_handler(commands=['help', 'مساعدة'])
-def send_help(message):
-    help_text = """
-🤖 *أوامر البوت:*
-/start - بدء التشغيل
-/help - عرض المساعدة
-
-*للاستخدام في المجموعات:*
-- اذكر البوت @{} في رسالتك
-- أو رد على رسالة البوت
-""".format(bot.get_me().username)
-    bot.reply_to(message, help_text, parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
-    chat_id = message.chat.id
-    chat_history = get_chat_history(chat_id)
-    
-    # التحقق إذا كان في مجموعة وتم ذكر البوت
-    bot_username = f"@{bot.get_me().username}"
-    if message.chat.type in ["group", "supergroup"]:
-        if bot_username not in message.text and not message.reply_to_message:
-            return  # لا يرد إذا لم يذكر
-    
-    user_input = message.text.replace(bot_username, "").strip()
-    
-    chat_history.append({"role": "user", "content": user_input})
-    
-    # تقليل طول المحادثة
-    if len(chat_history) > 11:
-        chat_history[1:] = chat_history[-9:]
-    
-    try:
-        reply = get_groq_response(chat_history)
-        chat_history.append({"role": "assistant", "content": reply})
-        bot.reply_to(message, reply)
-    except Exception as e:
-        print(f"Error: {e}")
-        bot.reply_to(message, "❌ حدث خطأ في المعالجة")
+# حفظ تاريخ المحادثة لكل دردشة على حدة
+chat_histories = {}
 
 def get_groq_response(messages):
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -85,9 +33,53 @@ def get_groq_response(messages):
         "temperature": 0.7
     }
     
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exce    raise ConnectionError(err, request=requesption as e:
+        print(f"Groq API Error: {e}")
+        return "❌ حدث خطأ في الاتصال بالذكاء الاصطناعي"
 
-print("🚀 البوت شغال وجاهز للمجموعات...")
+# رسالة الترحيب
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "🤖 أهلاً جمال! البوت شغال الآن ❤️")
+
+# الرد على كل رسالة
+@bot.message_handler(func=lambda message: True)
+def reply_to_user(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    text = message.text
+
+    # إنشاء تاريخ محادثة خاص بهذه الدردشة
+    if chat_id not in chat_histories:
+        chat_histories[chat_id] = [
+            {"role": "system",
+             "content": (
+                 "You are Jamal's personal assistant. "
+                 "You help the admin (Jamal) manage the group and channel. "
+                 "You never respond to anyone else."
+             )}
+        ]
+    
+    # إضافة الرسالة لتاريخ المحادثة
+    chat_histories[chat_id].append({"role": "user", "content": text})
+    if len(chat_histories[chat_id]) > 11:
+        chat_histories[chat_id][1:] = chat_histories[chat_id][-9:]
+
+    # الحصول على الرد من Groq API
+    reply = get_groq_response(chat_histories[chat_id])
+    chat_histories[chat_id].append({"role": "assistant", "content": reply})
+
+    # ✅ إذا كان المرسل هو المالك (Owner) في الخاص → ينشر في القناة
+    if user_id == OWNER_ID and message.chat.type == "private":
+        bot.send_message(CHANNEL_ID, f"📢 رسالة من المالك:\n{text}")
+        bot.send_message(chat_id, "✔ تم نشر رسالتك في القناة")
+    else:
+        # الرد في نفس مكان الرسالة (مجموعة أو رسالة خاصة من شخص آخر)
+        bot.reply_to(message, reply)
+
+print("🚀 جاري تشغيل البوت...")
 bot.infinity_polling()
